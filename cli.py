@@ -7,11 +7,11 @@ STUDENTS_FILE = "data/students_list.txt"
 
 def print_menu():
     """
-    Print the main menu options for the Teacher's Grade Management System.
+    Display the main menu for the Teacher's Gradebook application.
 
-    Displays a formatted console menu with a list of available actions,
-    such as managing students, topics, grades, and attendance, 
-    bordered by separator lines for better readability.
+    Prints a formatted list of available options for managing students,
+    topics, grades, and attendance, along with visual separators and
+    a header title in Russian.
 
     Returns:
         None
@@ -30,6 +30,10 @@ def print_menu():
     print(" 9. Показать посещаемость по теме")
     print("10. Сводная таблица оценок")
     print("11. Сохранить и выйти")
+    print("12. Средний балл студента")
+    print("13. Средний балл группы")
+    print("14. Список должников по теме")
+    print("15. Посещаемость студента (%)")
     print("=" * 50)
 
 def add_student_interactive(course):
@@ -354,6 +358,125 @@ def show_all_grades(course):
             row += str(score).ljust(15)
         print(row)
 
+def show_student_average(course):
+    """
+    Prompts for a student's name and displays their average grade for a given course.
+    
+    Args:
+        course: A course object that provides the `get_student_average` method.
+    
+    Returns:
+        None
+    """
+    student = input("Введите имя студента: ").strip()
+    if not student:
+        print("❌ Имя не может быть пустым.")
+        return
+    try:
+        avg = course.get_student_average(student)
+        print(f"📊 Средний балл студента '{student}': {avg}")
+    except ValueError as e:
+        print(f"❌ {e}")
+
+def show_group_average(course):
+    """
+    Displays the average grade for a group in the given course.
+    
+    Args:
+        course: An object representing a course, which is expected to have 
+                a `get_group_average` method that returns the average grade.
+    """
+    avg = course.get_group_average()
+    print(f"📊 Средний балл группы: {avg}")
+
+def show_debtors(course):
+    """
+    Interactively prompts the user for a topic and a passing score, 
+    then retrieves and displays the list of students who failed to meet 
+    the passing score for the specified topic in the given course.
+
+    Parameters
+    ----------
+    course : object
+        An object representing a course, which must have a 
+        `get_debtors(topic, pass_score)` method that returns a list of 
+        student names (debtors) and may raise a ValueError if the topic 
+        is not found or invalid.
+
+    Returns
+    -------
+    None
+        This function does not return any value; it prints the results 
+        directly to the console.
+
+    Notes
+    -----
+    - Prompts for a topic name; if empty, prints an error and exits.
+    - Prompts for a passing score; if not a valid integer, prints an 
+      error and exits.
+    - If all students passed, prints a success message.
+    - If there are debtors, prints a numbered list of their names.
+    - Catches ValueError from the `course.get_debtors` method and 
+      prints the error message.
+    """
+    topic = input("Введите название темы: ").strip()
+    if not topic:
+        print("❌ Название не может быть пустым.")
+        return
+    try:
+        pass_score = int(input("Введите проходной балл: "))
+    except ValueError:
+        print("❌ Проходной балл должен быть целым числом.")
+        return
+    try:
+        debtors = course.get_debtors(topic, pass_score)
+        if not debtors:
+            print(f"✅ Все студенты сдали тему '{topic}'.")
+        else:
+            print(f"\n📋 Список должников по теме '{topic}':")
+            for i, name in enumerate(debtors, 1):
+                print(f"  {i}. {name}")
+    except ValueError as e:
+        print(f"❌ {e}")
+
+def show_attendance_rate(course):
+    """
+    Prompt for a student's name and display their attendance rate for a given course.
+
+    This function interactively asks the user to input a student's name. 
+    If the input is empty, it prints an error message and exits. 
+    Otherwise, it attempts to retrieve and display the attendance rate 
+    from the provided course object. If a ValueError occurs during 
+    retrieval, it prints the error message.
+
+    Parameters
+    ----------
+    course : object
+        A course object that must implement the `get_attendance_rate(student)` 
+        method, which returns a numerical attendance rate or raises a ValueError 
+        if the student is not found.
+
+    Returns
+    -------
+    None
+        This function does not return any value; it only prints output to the console.
+
+    Raises
+    ------
+    ValueError
+        Handled internally. Propagated by the `course.get_attendance_rate()` method 
+        if the student does not exist in the course records.
+    """
+    student = input("Введите имя студента: ").strip()
+    if not student:
+        print("❌ Имя не может быть пустым.")
+        return
+    try:
+        rate = course.get_attendance_rate(student)
+        print(f"📊 Посещаемость студента '{student}': {rate}%")
+    except ValueError as e:
+        print(f"❌ {e}")
+
 def save_and_exit(course):
     """
     Save course data to file and exit the program.
@@ -431,6 +554,14 @@ def main():
             show_all_grades(course)
         elif choice == "11":
             save_and_exit(course)
+        elif choice == "12":
+            show_student_average(course)
+        elif choice == "13":
+            show_group_average(course)
+        elif choice == "14":
+            show_debtors(course)
+        elif choice == "15":
+            show_attendance_rate(course)
         else:
             print("❌ Неверный выбор. Пожалуйста, выберите число от 1 до 11.")
 

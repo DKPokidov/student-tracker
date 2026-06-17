@@ -214,6 +214,144 @@ class Course():
                 return {}
         return self.attendance.get(student_name)
     
+    def get_attendance_by_topic(self, topic_name: str) -> dict[str, bool]:
+        """
+        Retrieves the attendance status of all students for a specific topic.
+
+        Args:
+            topic_name (str): The name of the topic to check attendance for.
+
+        Returns:
+            dict[str, bool]: A dictionary where keys are student identifiers and values 
+                             are booleans indicating their attendance (True if attended, 
+                             False otherwise). Returns an empty dictionary if the topic 
+                             is not found.
+        """
+        attend_dict = {}
+        
+        found = False
+        for topic in self.topics:
+            if topic['topic_name'] == topic_name:
+                found = True
+                break
+        
+        if not found:
+            return attend_dict
+        
+        for student in self.students:
+            student_attend_dict = self.get_attendance(student)
+            is_attend = student_attend_dict.get(topic_name, False)
+            attend_dict[student] = is_attend
+        
+        return attend_dict
+
+    def get_student_average(self, student_name: str) -> float:
+        """
+        Calculate the average score of a specific student across all practice topics.
+
+        Args:
+            student_name (str): The name of the student whose average score is to be calculated.
+
+        Returns:
+            float: The average score of the student rounded to 1 decimal place. 
+                   Returns 0.0 if the student has no valid grades in practice topics.
+
+        Raises:
+            ValueError: If the provided student_name is not found in the students list.
+        """
+        if student_name not in self.students:
+            raise ValueError(f"Student '{student_name}' not found")
+        
+        total = 0
+        count = 0
+        for topic in self.topics:
+            if topic['topic_type'] == 'practice' and topic['topic_max_score'] > 0:
+                topic_name = topic['topic_name']
+                grade = self.get_grade(student_name, topic_name)
+                if grade is not None:
+                    total += grade
+                    count += 1
+    
+        if count == 0:
+            return 0.0
+        
+        return round(total / count, 1)
+    
+    def get_group_average(self) -> float:
+        """
+        Calculate the average grade of the student group.
+
+        This method computes the average of all student averages in the group,
+        excluding any students with an average of 0 or less. The final result
+        is rounded to one decimal place.
+
+        Returns:
+            float: The rounded average grade of the group. 
+        """
+        grade_list = [self.get_student_average(student) for student in self.students if self.get_student_average(student) > 0]
+        return round(sum(grade_list) / len(grade_list), 1)
+    
+    def get_debtors(self, topic_name: str, pass_score: int) -> list[str]:
+        """
+        Retrieves a list of students who are considered 'debtors' for a given topic.
+        
+        A student is considered a debtor if their grade for the specified topic is 
+        either None (meaning no grade found) or strictly less than the pass_score.
+        
+        Args:
+            topic_name (str): The name of the topic to check grades for.
+            pass_score (int): The minimum score required to pass. Students scoring 
+                              below this threshold will be included in the result.
+        
+        Returns:
+            list[str]: A list of student identifiers who did not meet the pass_score 
+                       criteria for the specified topic.
+        
+        Raises:
+            ValueError: If the provided topic_name does not exist in self.topics.
+        """
+        found = False
+        for topic in self.topics:
+            if topic['topic_name'] == topic_name:
+                found = True
+                break
+        if not found:
+            raise ValueError(f"Topic {topic_name} not found")
+
+        grade_list = []
+        for student in self.students:
+            grade = self.get_grade(student, topic_name)
+            if grade is None or grade < pass_score:
+                grade_list.append(student)
+
+        return grade_list
+    
+    def get_attendance_rate(self, student_name: str) -> float:
+        """
+        Calculate the attendance rate of a specific student in the course.
+
+        Args:
+            student_name (str): The name of the student whose attendance rate is to be calculated.
+
+        Returns:
+            float: The attendance rate as a percentage, rounded to one decimal place.
+                   Returns 0.0 if there are no topics in the course.
+
+        Raises:
+            ValueError: If the provided student_name does not exist in the course's student list.
+        """
+        if student_name not in self.students:
+            raise ValueError(f"There is no student '{student_name}' in the course!")
+        
+        topic_total = len(self.topics)
+        if topic_total == 0:
+            return 0.0
+        
+        student_attendance = self.attendance.get(student_name, {})
+        stud_total = sum(student_attendance.values())
+        
+        return round(stud_total / topic_total * 100, 1)
+        
     def save_to_file(self, filename: str):
         """
         Saves the current object's data to a JSON file.
@@ -250,24 +388,6 @@ class Course():
         except IOError as e:
             print(f"Input/Output error: {e}")
 
-    def get_attendance_by_topic(self, topic_name: str) -> dict[str, bool]:
-        attend_dict = {}
-        
-        found = False
-        for topic in self.topics:
-            if topic['topic_name'] == topic_name:
-                found = True
-                break
-        
-        if not found:
-            return attend_dict
-        
-        for student in self.students:
-            student_attend_dict = self.get_attendance(student)
-            is_attend = student_attend_dict.get(topic_name, False)
-            attend_dict[student] = is_attend
-        
-        return attend_dict
 
     def load_from_file(self, filename):
         """
