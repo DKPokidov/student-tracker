@@ -1,5 +1,8 @@
 import json
 import os
+from decorators import requires_student, log_action
+from utils import read_students_from_file
+from exceptions import StudentNotFoundError, TopicNotFoundError, InvalidScoreError, InvalidTopicTypeError
 
 class Course():
     def __init__(
@@ -26,6 +29,7 @@ class Course():
         self.grades = grades if grades is not None else {}
         self.attendance = attendance if attendance is not None else {}
     
+    @log_action
     def add_student(self, student: str):
         """Adds a student to the class if they are not already present.
         
@@ -40,19 +44,23 @@ class Course():
         else:
             print(f"{student} is already in {self.name}")
 
+    @log_action
     def remove_student(self, student: str):
         """Removes a student from the class roster.
 
         If the student is found in the roster, they are removed.
-        If the student is not found, a message is printed to the console.
+        If the student is not found, a StudentNotFoundError is raised.
 
         Args:
             student (str): The name of the student to be removed.
+
+        Raises:
+            StudentNotFoundError: If the student is not found in the roster.
         """
         if student in self.students:
             self.students.remove(student)
         else:
-            print(f'{student} is not in {self.name}')
+            raise StudentNotFoundError(f'{student} is not in {self.name}')
 
     def get_all_students(self):
         """Retrieve all students, sort them alphabetically, and print them as a numbered list.
@@ -79,7 +87,7 @@ class Course():
         """
         type = type.lower()
         if type not in ('lecture', 'practice'):
-            raise ValueError(f"Invalid type: '{type}'. Must be 'lecture' or 'practice'.")
+            raise InvalidTopicTypeError(f"Invalid type: '{type}'. Must be 'lecture' or 'practice'.")
             
         topic_dict = {
             'topic_name': name,
@@ -98,6 +106,9 @@ class Course():
         """
         return self.topics
     
+    
+    @requires_student
+    @log_action
     def set_grade(self, student_name: str, topic_name: str, score: int) -> None:
         """
         Sets the grade for a specific student on a specific topic.
@@ -111,12 +122,9 @@ class Course():
             None
 
         Raises:
-            ValueError: If the student is not found in the course.
-            ValueError: If the topic is not found in the course.
-            ValueError: If the score is negative or exceeds the topic's maximum score.
+            TopicNotFoundError: If the topic is not found in the course.
+            InvalidScoreError: If the score is negative or exceeds the topic's maximum score.
         """
-        if student_name not in self.students:
-            raise ValueError(f"Student '{student_name}' not found")
         
         max_score = None
         for topic in self.topics:
@@ -124,10 +132,10 @@ class Course():
                 max_score = topic['topic_max_score']
                 break
         if max_score is None:
-            raise ValueError(f"Topic '{topic_name}' not found")
+            raise TopicNotFoundError(f"Topic '{topic_name}' not found")
                 
         if score > max_score or score < 0:
-            raise ValueError(f'Score {score} is inappropriate!') 
+            raise InvalidScoreError(f'Score {score} is inappropriate!') 
         
         if student_name not in self.grades:
             self.grades[student_name] = {}
@@ -165,6 +173,8 @@ class Course():
                 return {}
         return self.grades[student_name]
     
+    @requires_student
+    @log_action
     def mark_attendance(self, student_name: str, topic_name: str, present: bool):
         """
         Marks the attendance for a specific student on a specific topic.
@@ -175,14 +185,12 @@ class Course():
             present (bool): The attendance status, True if the student is present, False otherwise.
 
         Raises:
-            ValueError: If the provided student_name does not exist in the students list.
-            ValueError: If the provided topic_name does not exist in the topics list.
+            StudentNotFoundError: If the provided student_name does not exist in the students list.
+            StudentNotFoundError: If the provided topic_name does not exist in the topics list.
 
         Returns:
             None
         """
-        if student_name not in self.students:
-                raise ValueError(f"Student '{student_name}' not found")
         
         found = False
         for topic in self.topics:
@@ -190,7 +198,7 @@ class Course():
                     found = True
                     break
         if not found:
-                raise ValueError(f"Topic '{topic_name}' not found")
+                raise StudentNotFoundError(f"Topic '{topic_name}' not found")
         
         if student_name not in self.attendance:
                 self.attendance[student_name] = {}
@@ -245,6 +253,7 @@ class Course():
         
         return attend_dict
 
+    @requires_student
     def get_student_average(self, student_name: str) -> float:
         """
         Calculate the average score of a specific student across all practice topics.
@@ -259,8 +268,6 @@ class Course():
         Raises:
             ValueError: If the provided student_name is not found in the students list.
         """
-        if student_name not in self.students:
-            raise ValueError(f"Student '{student_name}' not found")
         
         total = 0
         count = 0
@@ -308,7 +315,7 @@ class Course():
                        criteria for the specified topic.
         
         Raises:
-            ValueError: If the provided topic_name does not exist in self.topics.
+            TopicNotFoundError: If the provided topic_name does not exist in self.topics.
         """
         found = False
         for topic in self.topics:
@@ -316,7 +323,7 @@ class Course():
                 found = True
                 break
         if not found:
-            raise ValueError(f"Topic {topic_name} not found")
+            raise TopicNotFoundError(f"Topic {topic_name} not found")
 
         grade_list = []
         for student in self.students:
@@ -326,6 +333,7 @@ class Course():
 
         return grade_list
     
+    @requires_student
     def get_attendance_rate(self, student_name: str) -> float:
         """
         Calculate the attendance rate of a specific student in the course.
@@ -340,8 +348,8 @@ class Course():
         Raises:
             ValueError: If the provided student_name does not exist in the course's student list.
         """
-        if student_name not in self.students:
-            raise ValueError(f"There is no student '{student_name}' in the course!")
+        # if student_name not in self.students:
+        #     raise StudentNotFoundError(f"There is no student '{student_name}' in the course!")
         
         topic_total = len(self.topics)
         if topic_total == 0:
@@ -429,27 +437,20 @@ class Course():
             print(f"Unexpected error: {type(e).__name__}: {e}")
 
 if __name__ == "__main__":
-    from utils import read_students_from_file
     
     PATH = 'data/students_list.txt'
     students = read_students_from_file(PATH)
-    tracker = Course(name='Python for beginners', students=students)
+
+    # Создаём курс и добавляем одного студента
+    course = Course("Test Course")
     
-    tracker.add_topic(name='Matplotlib', type='Lecture', max_score=20)
-    tracker.set_grade("Зайкова В. Д.", "Matplotlib", 5)
-    tracker.mark_attendance("Зайкова В. Д.", "Matplotlib", True)
+    print("=== Тест декоратора @log_action ===")
+    course.add_student("Иванов")
     
-    print("Оценки:", tracker.grades)
-    print("Посещаемость:", tracker.attendance)
-    
-    tracker.save_to_file('data/topics_list.json')
-  
-    new_tracker = Course(name="Loaded Course")
-    new_tracker.load_from_file('data/topics_list.json')
-    print("\n--- Загруженные данные ---")
-    print("Студенты:", new_tracker.students)
-    print("Темы:", new_tracker.topics)
-    print("Оценки:", new_tracker.grades)
-    print("Посещаемость:", new_tracker.attendance)
+    print("\n=== Тест декоратора @requires_student ===")
+    try:
+        course.set_grade("Петров", "Тема", 5)
+    except StudentNotFoundError as e:
+        print(f"✅ Ошибка перехвачена: {e}")
 
         
