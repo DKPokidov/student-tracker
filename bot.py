@@ -86,20 +86,32 @@ async def add_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ {e}")
 
 async def set_grade(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Выставляет оценку."""
+    """Выставляет оценку студенту за тему."""
     if len(context.args) < 3:
-        await update.message.reply_text("❌ Формат: /set_grade Студент Тема Оценка")
+        await update.message.reply_text(
+            "❌ Формат: /set_grade Студент Тема Оценка\n"
+            "Пример: /set_grade Сазонова А. А. Pandas 13"
+        )
         return
-    student = context.args[0]
-    topic = context.args[1]
+
+    *name_parts, topic, score_str = context.args
+
+    student = " ".join(name_parts).strip()
+    if not student:
+        await update.message.reply_text("❌ Имя студента не может быть пустым.")
+        return
+
     try:
-        score = int(context.args[2])
+        score = int(score_str)
     except ValueError:
-        await update.message.reply_text("❌ Оценка должна быть числом.")
+        await update.message.reply_text("❌ Оценка должна быть числом (например: 5, 12, 15).")
         return
+
     try:
         course.set_grade(student, topic, score)
-        await update.message.reply_text(f"✅ Оценка {score} для '{student}' по теме '{topic}' сохранена.")
+        await update.message.reply_text(
+            f"✅ Оценка {score} для '{student}' по теме '{topic}' сохранена."
+        )
     except Exception as e:
         await update.message.reply_text(f"❌ {e}")
 
