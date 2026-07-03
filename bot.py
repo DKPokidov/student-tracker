@@ -2,15 +2,15 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from tracker import Course
 import os
+from utils import read_students_from_file
 
 # === НАСТРОЙКИ ===
-TOKEN = os.environ.get("BOT_TOKEN")
-if not TOKEN:
-    raise ValueError("❌ BOT_TOKEN environment variable not set!")
 DATA_FILE = "data/course_data.json"
+PATH = 'data/students_list.txt'
+students = read_students_from_file(PATH)
 
 # === ЗАГРУЗКА КУРСА ===
-course = Course("Python for beginners")
+course = Course("Python for beginners", students=students)
 try:
     course.load_from_file(DATA_FILE)
     print("✅ Данные загружены из файла.")
@@ -161,6 +161,9 @@ async def save(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === ЗАПУСК БОТА ===
 def main():
+    TOKEN = os.environ.get("BOT_TOKEN")
+    if not TOKEN:
+        raise ValueError("❌ BOT_TOKEN environment variable not set!")
     app = Application.builder().token(TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
