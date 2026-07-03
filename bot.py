@@ -1,9 +1,10 @@
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from tracker import Course
+import os
 
 # === НАСТРОЙКИ ===
-TOKEN = "7741391030:AAGi8C4FqVQlcetwVsBeVSQ66agF1qpmECA"
+TOKEN = os.environ.get("BOT_TOKEN")
 DATA_FILE = "data/course_data.json"
 
 # === ЗАГРУЗКА КУРСА ===
