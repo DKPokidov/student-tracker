@@ -5,6 +5,8 @@ import os
 
 # === НАСТРОЙКИ ===
 TOKEN = os.environ.get("BOT_TOKEN")
+if not TOKEN:
+    raise ValueError("❌ BOT_TOKEN environment variable not set!")
 DATA_FILE = "data/course_data.json"
 
 # === ЗАГРУЗКА КУРСА ===
@@ -172,8 +174,6 @@ def main():
     app.add_handler(CommandHandler("debtors", debtors))
     app.add_handler(CommandHandler("save", save))
 
-    app.run_polling(timeout=120, allowed_updates=[])
-    
     print("🤖 Бот запущен. Нажми Ctrl+C для остановки.")
     app.run_polling()
 
