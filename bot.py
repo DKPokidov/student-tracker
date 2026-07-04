@@ -2,6 +2,8 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from tracker import Course
 import os
+from flask import Flask
+import threading
 from utils import read_students_from_file
 
 # === НАСТРОЙКИ ===
@@ -171,6 +173,17 @@ async def save(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Ошибка при сохранении: {e}")
 
+web_app = Flask('')
+
+@web_app.route('/')
+def home():
+    return "✅ Bot is alive!"
+
+def run_web():
+    # Render передает порт через переменную окружения PORT
+    port = int(os.environ.get('PORT', 10000))
+    web_app.run(host='0.0.0.0', port=port)
+
 # === ЗАПУСК БОТА ===
 def main():
     TOKEN = os.environ.get("BOT_TOKEN")
@@ -188,6 +201,7 @@ def main():
     app.add_handler(CommandHandler("grades", grades))
     app.add_handler(CommandHandler("debtors", debtors))
     app.add_handler(CommandHandler("save", save))
+    threading.Thread(target=run_web, daemon=True).start()
 
     print("🤖 Бот запущен. Нажми Ctrl+C для остановки.")
     app.run_polling()
