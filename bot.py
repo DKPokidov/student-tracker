@@ -2,7 +2,7 @@ import os
 import sys
 import traceback
 import threading
-import requests
+import httpx
 from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -79,17 +79,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"📨 Команда /start от {update.effective_user.first_name}")
     await update.message.reply_text(
         "📚 Бот для учёта успеваемости\n\n"
-        "Доступные команды:\n"
+        "Доступные команды (разделитель — точка с запятой ;):\n"
         "/students — список студентов\n"
         "/topics [lecture|practice] — список тем (можно указать тип)\n"
         "/add_student Имя — добавить студента\n"
         "/remove_student Имя — удалить студента\n"
-        "/add_topic Название тип макс_балл — добавить тему\n"
-        "/set_grade Студент Тема Оценка — выставить оценку\n"
-        "/mark_attendance Студент Тема да/нет — отметить посещаемость\n"
+        "/add_topic Название; тип; макс_балл — добавить тему\n"
+        "/set_grade Студент; Тема; Оценка — выставить оценку\n"
+        "/mark_attendance Студент; Тема; да/нет — отметить посещаемость\n"
         "/grades Студент — показать оценки студента\n"
         "/grades_table — сводная таблица оценок (только практики)\n"
-        "/debtors Тема проходной_балл — список должников\n"
+        "/debtors Тема; проходной_балл — список должников\n"
         "/attendance_rate Студент — процент посещаемости\n"
         "/save — сохранить данные"
     )
@@ -170,19 +170,27 @@ async def remove_student(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ {e}")
 
 async def add_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Добавляет тему."""
+    """Добавляет тему. Формат: /add_topic Название; тип; макс_балл"""
     print(f"📨 Команда /add_topic от {update.effective_user.first_name}")
     try:
-        if len(context.args) < 3:
-            await update.message.reply_text("❌ Формат: /add_topic Название тип макс_балл")
+        text = update.message.text
+        parts = text.split(';')
+        if len(parts) != 4:
+            await update.message.reply_text(
+                "❌ Формат: /add_topic Название; тип; макс_балл\n"
+                "Пример: /add_topic Работа с API; practice; 10"
+            )
             return
-        name = context.args[0]
-        topic_type = context.args[1].lower()
+
+        # Убираем команду /add_topic из первой части
+        name = parts[0].strip().split(maxsplit=1)[1] if parts[0].strip().startswith('/add_topic') else parts[0].strip()
+        topic_type = parts[1].strip().lower()
         try:
-            max_score = int(context.args[2])
+            max_score = int(parts[2].strip())
         except ValueError:
             await update.message.reply_text("❌ Максимальный балл должен быть числом.")
             return
+
         course.add_topic(name, topic_type, max_score)
         await update.message.reply_text(f"✅ Тема '{name}' добавлена.")
     except Exception as e:
@@ -191,41 +199,35 @@ async def add_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ {e}")
 
 async def set_grade(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Выставляет оценку студенту за тему (только для практик)."""
+    """Выставляет оценку. Формат: /set_grade Студент; Тема; Оценка"""
     print(f"📨 Команда /set_grade от {update.effective_user.first_name}")
     try:
-        if len(context.args) < 3:
+        text = update.message.text
+        parts = text.split(';')
+        if len(parts) != 4:
             await update.message.reply_text(
-                "❌ Формат: /set_grade Студент Тема Оценка\n"
-                "Пример: /set_grade Сазонова А. А. Pandas 13"
+                "❌ Формат: /set_grade Студент; Тема; Оценка\n"
+                "Пример: /set_grade Сазонова А. А.; Работа с API; 13"
             )
             return
 
-        *name_parts, topic, score_str = context.args
-
-        student = " ".join(name_parts).strip()
-        if not student:
-            await update.message.reply_text("❌ Имя студента не может быть пустым.")
-            return
-
+        # Парсим студента (убираем команду /set_grade)
+        student = parts[0].strip().split(maxsplit=1)[1] if parts[0].strip().startswith('/set_grade') else parts[0].strip()
+        topic = parts[1].strip()
         try:
-            score = int(score_str)
+            score = int(parts[2].strip())
         except ValueError:
-            await update.message.reply_text("❌ Оценка должна быть числом (например: 5, 12, 15).")
+            await update.message.reply_text("❌ Оценка должна быть числом.")
             return
 
-        # Дополнительная проверка: тема должна быть практикой
-        is_practice = False
-        for t in course.topics:
-            if t['topic_name'] == topic:
-                if t['topic_type'] == 'practice' and t['topic_max_score'] > 0:
-                    is_practice = True
-                break
-
+        # Проверка, что тема — практика
+        is_practice = any(
+            t['topic_name'] == topic and t['topic_type'] == 'practice' and t['topic_max_score'] > 0
+            for t in course.topics
+        )
         if not is_practice:
             await update.message.reply_text(
-                f"❌ Тема '{topic}' является лекцией или не найдена. "
-                "Оценки можно ставить только для практик."
+                f"❌ Тема '{topic}' является лекцией или не найдена. Оценки можно ставить только для практик."
             )
             return
 
@@ -240,18 +242,22 @@ async def set_grade(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ {e}")
 
 async def mark_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Отмечает посещаемость."""
+    """Отмечает посещаемость. Формат: /mark_attendance Студент; Тема; да/нет"""
     print(f"📨 Команда /mark_attendance от {update.effective_user.first_name}")
     try:
-        if len(context.args) < 3:
-            await update.message.reply_text("❌ Формат: /mark_attendance Студент Тема да/нет")
+        text = update.message.text
+        parts = text.split(';')
+        if len(parts) != 4:
+            await update.message.reply_text(
+                "❌ Формат: /mark_attendance Студент; Тема; да/нет\n"
+                "Пример: /mark_attendance Сазонова А. А.; Работа с API; да"
+            )
             return
-        *name_parts, topic, present_str = context.args
-        student = " ".join(name_parts).strip()
-        if not student:
-            await update.message.reply_text("❌ Имя студента не может быть пустым.")
-            return
-        present = present_str.lower() in ('да', 'yes', 'true', '1')
+
+        student = parts[0].strip().split(maxsplit=1)[1] if parts[0].strip().startswith('/mark_attendance') else parts[0].strip()
+        topic = parts[1].strip()
+        present = parts[2].strip().lower() in ('да', 'yes', 'true', '1')
+
         course.mark_attendance(student, topic, present)
         await update.message.reply_text(f"✅ Посещаемость для '{student}' по теме '{topic}' отмечена.")
     except Exception as e:
@@ -293,7 +299,6 @@ async def grades_table(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("📭 Нет практических занятий для отображения.")
             return
 
-        # Динамическая ширина
         student_width = max(len(s) for s in all_students + ["Студент"])
         topic_widths = {t: max(len(t), 6) for t in all_topics}
 
@@ -319,18 +324,25 @@ async def grades_table(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Произошла ошибка при формировании таблицы.")
 
 async def debtors(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показывает должников по теме."""
+    """Показывает должников. Формат: /debtors Тема; проходной_балл"""
     print(f"📨 Команда /debtors от {update.effective_user.first_name}")
     try:
-        if len(context.args) < 2:
-            await update.message.reply_text("❌ Формат: /debtors Тема проходной_балл")
+        text = update.message.text
+        parts = text.split(';')
+        if len(parts) != 3:
+            await update.message.reply_text(
+                "❌ Формат: /debtors Тема; проходной_балл\n"
+                "Пример: /debtors Работа с API; 6"
+            )
             return
-        topic = context.args[0]
+
+        topic = parts[0].strip().split(maxsplit=1)[1] if parts[0].strip().startswith('/debtors') else parts[0].strip()
         try:
-            pass_score = int(context.args[1])
+            pass_score = int(parts[1].strip())
         except ValueError:
             await update.message.reply_text("❌ Проходной балл должен быть числом.")
             return
+
         debtors_list = course.get_debtors(topic, pass_score)
         if not debtors_list:
             await update.message.reply_text(f"✅ Все студенты сдали тему '{topic}'.")
